@@ -20,6 +20,7 @@ Please describe in natural language what you want to do.
 
 5. If you don't need to upload a file, you can simply repeat your command again.
 """
+
 explain_msg = """
 ## 虚空终端插件说明:
 
@@ -57,29 +58,74 @@ from crazy_functions.vt_fns.vt_modify_config import modify_configuration_hot
 from crazy_functions.vt_fns.vt_modify_config import modify_configuration_reboot
 from crazy_functions.vt_fns.vt_call_plugin import execute_plugin
 
+""" 这段代码从多个模块中导入了多个函数和类，用于处理异常、更新用户界面、检查上传文件夹、调用GPT模型、处理JSON数据、管理终端状态、修改配置以及执行插件。下面是对每个函数和类的简要说明：
+
+1. **`CatchException`**：用于捕获和处理异常，确保程序的稳定运行。
+
+2. **`update_ui`**：用于更新用户界面，可能是为了显示最新的消息或状态。
+
+3. **`update_ui_lastest_msg`**：用于更新用户界面，显示最新的消息。
+
+4. **`is_the_upload_folder`**：检查某个路径是否是上传文件夹。
+
+5. **`predict_no_ui_long_connection`**：可能是用于在无用户界面和长时间连接的情况下进行预测。
+
+6. **`request_gpt_model_in_new_thread_with_ui_alive`**：在新的线程中请求GPT模型，同时保持用户界面的活跃状态。
+
+7. **`input_clipping`**：可能用于处理输入的剪切。
+
+8. **`GptJsonIO`**：用于处理GPT模型的JSON输入输出。
+
+9. **`JsonStringError`**：用于处理JSON字符串错误。
+
+10. **`VoidTerminalState`**：可能用于管理终端的状态。
+
+11. **`modify_configuration_hot`**：用于修改配置，可能是在不重启的情况下修改。
+
+12. **`modify_configuration_reboot`**：用于修改配置，可能需要重启。
+
+13. **`execute_plugin`**：用于执行插件。
+
+这些函数和类可能用于一个复杂的软件系统，该系统涉及到用户界面更新、异常处理、配置管理、插件执行等功能。它们可能是一个基于GPT模型的应用，用于处理文本数据，并且支持多种配置和插件。 """
+
+
 class UserIntention(BaseModel):
+    # 用户输入的内容
     user_prompt: str = Field(description="the content of user input", default="")
-    intention_type: str = Field(description="the type of user intention, choose from ['ModifyConfiguration', 'ExecutePlugin', 'Chat']", default="ExecutePlugin")
-    user_provide_file: bool = Field(description="whether the user provides a path to a file", default=False)
-    user_provide_url: bool = Field(description="whether the user provides a url", default=False)
+    # 用户意图的类型，从['ModifyConfiguration', 'ExecutePlugin', 'Chat']中选择
+    intention_type: str = Field(
+        description="the type of user intention, choose from ['ModifyConfiguration', 'ExecutePlugin', 'Chat']",
+        default="ExecutePlugin",
+    )
+    # 用户是否提供了文件路径
+    user_provide_file: bool = Field(
+        description="whether the user provides a path to a file", default=False
+    )
+    user_provide_url: bool = Field(
+        description="whether the user provides a url", default=False
+    )
 
 
-def chat(txt, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, user_intention):
+def chat(
+    txt, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, user_intention
+):
     gpt_say = yield from request_gpt_model_in_new_thread_with_ui_alive(
-        inputs=txt, inputs_show_user=txt,
-        llm_kwargs=llm_kwargs, chatbot=chatbot, history=[],
-        sys_prompt=system_prompt
+        inputs=txt,
+        inputs_show_user=txt,
+        llm_kwargs=llm_kwargs,
+        chatbot=chatbot,
+        history=[],
+        sys_prompt=system_prompt,
     )
     chatbot[-1] = [txt, gpt_say]
     history.extend([txt, gpt_say])
-    yield from update_ui(chatbot=chatbot, history=history) # 刷新界面
-    pass
+    yield from update_ui(chatbot=chatbot, history=history)  # 刷新界面
 
 
 explain_intention_to_user = {
-    'Chat': "聊天对话",
-    'ExecutePlugin': "调用插件",
-    'ModifyConfiguration': "修改配置",
+    "Chat": "聊天对话",
+    "ExecutePlugin": "调用插件",
+    "ModifyConfiguration": "修改配置",
 }
 
 
@@ -88,23 +134,25 @@ def analyze_intention_with_simple_rules(txt):
     user_intention.user_prompt = txt
     is_certain = False
 
-    if '请问' in txt:
+    if "请问" in txt:
         is_certain = True
-        user_intention.intention_type = 'Chat'
+        user_intention.intention_type = "Chat"
 
-    if '用插件' in txt:
+    if "用插件" in txt:
         is_certain = True
-        user_intention.intention_type = 'ExecutePlugin'
+        user_intention.intention_type = "ExecutePlugin"
 
-    if '修改配置' in txt:
+    if "修改配置" in txt:
         is_certain = True
-        user_intention.intention_type = 'ModifyConfiguration'
+        user_intention.intention_type = "ModifyConfiguration"
 
     return is_certain, user_intention
 
 
 @CatchException
-def 虚空终端(txt, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, user_request):
+def 虚空终端(
+    txt, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, user_request
+):
     disable_auto_promotion(chatbot=chatbot)
     # 获取当前虚空终端状态
     state = VoidTerminalState.get_state(chatbot)
@@ -113,68 +161,128 @@ def 虚空终端(txt, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt
     # 用简单的关键词检测用户意图
     is_certain, _ = analyze_intention_with_simple_rules(txt)
     if is_the_upload_folder(txt):
-        state.set_state(chatbot=chatbot, key='has_provided_explaination', value=False)
+        state.set_state(chatbot=chatbot, key="has_provided_explaination", value=False)
         appendix_msg = "\n\n**很好，您已经上传了文件**，现在请您描述您的需求。"
 
     if is_certain or (state.has_provided_explaination):
         # 如果意图明确，跳过提示环节
-        state.set_state(chatbot=chatbot, key='has_provided_explaination', value=True)
+        state.set_state(chatbot=chatbot, key="has_provided_explaination", value=True)
         state.unlock_plugin(chatbot=chatbot)
         yield from update_ui(chatbot=chatbot, history=history)
-        yield from 虚空终端主路由(txt, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, user_request)
-        return
+        yield from 虚空终端主路由(
+            txt,
+            llm_kwargs,
+            plugin_kwargs,
+            chatbot,
+            history,
+            system_prompt,
+            user_request,
+        )
     else:
         # 如果意图模糊，提示
-        state.set_state(chatbot=chatbot, key='has_provided_explaination', value=True)
+        state.set_state(chatbot=chatbot, key="has_provided_explaination", value=True)
         state.lock_plugin(chatbot=chatbot)
-        chatbot.append(("虚空终端状态:", explain_msg+appendix_msg))
+        chatbot.append(("虚空终端状态:", explain_msg + appendix_msg))
         yield from update_ui(chatbot=chatbot, history=history)
-        return
+
+    return
 
 
-
-def 虚空终端主路由(txt, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, user_request):
+def 虚空终端主路由(
+    txt, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, user_request
+):
     history = []
     chatbot.append(("虚空终端状态: ", f"正在执行任务: {txt}"))
-    yield from update_ui(chatbot=chatbot, history=history) # 刷新界面
+    yield from update_ui(chatbot=chatbot, history=history)  # 刷新界面
 
     # ⭐ ⭐ ⭐ 分析用户意图
     is_certain, user_intention = analyze_intention_with_simple_rules(txt)
     if not is_certain:
         yield from update_ui_lastest_msg(
-            lastmsg=f"正在执行任务: {txt}\n\n分析用户意图中", chatbot=chatbot, history=history, delay=0)
+            lastmsg=f"正在执行任务: {txt}\n\n分析用户意图中",
+            chatbot=chatbot,
+            history=history,
+            delay=0,
+        )
         gpt_json_io = GptJsonIO(UserIntention)
         rf_req = "\nchoose from ['ModifyConfiguration', 'ExecutePlugin', 'Chat']"
-        inputs = "Analyze the intention of the user according to following user input: \n\n" + \
-            ">> " + (txt+rf_req).rstrip('\n').replace('\n','\n>> ') + '\n\n' + gpt_json_io.format_instructions
-        run_gpt_fn = lambda inputs, sys_prompt: predict_no_ui_long_connection(
-            inputs=inputs, llm_kwargs=llm_kwargs, history=[], sys_prompt=sys_prompt, observe_window=[])
+        inputs = (
+            "Analyze the intention of the user according to following user input: \n\n"
+            + ">> "
+            + (txt + rf_req).rstrip("\n").replace("\n", "\n>> ")
+            + "\n\n"
+            + gpt_json_io.format_instructions
+        )
+
+        def run_gpt_fn(inputs, sys_prompt):
+            return predict_no_ui_long_connection(
+                inputs=inputs,
+                llm_kwargs=llm_kwargs,
+                history=[],
+                sys_prompt=sys_prompt,
+                observe_window=[],
+            )
+
         analyze_res = run_gpt_fn(inputs, "")
         try:
-            user_intention = gpt_json_io.generate_output_auto_repair(analyze_res, run_gpt_fn)
-            lastmsg=f"正在执行任务: {txt}\n\n用户意图理解: 意图={explain_intention_to_user[user_intention.intention_type]}",
+            user_intention = gpt_json_io.generate_output_auto_repair(
+                analyze_res, run_gpt_fn
+            )
+            lastmsg = (
+                f"正在执行任务: {txt}\n\n用户意图理解: 意图={explain_intention_to_user[user_intention.intention_type]}",
+            )
         except JsonStringError as e:
             yield from update_ui_lastest_msg(
-                lastmsg=f"正在执行任务: {txt}\n\n用户意图理解: 失败 当前语言模型（{llm_kwargs['llm_model']}）不能理解您的意图", chatbot=chatbot, history=history, delay=0)
+                lastmsg=f"正在执行任务: {txt}\n\n用户意图理解: 失败 当前语言模型（{llm_kwargs['llm_model']}）不能理解您的意图",
+                chatbot=chatbot,
+                history=history,
+                delay=0,
+            )
             return
     else:
         pass
 
     yield from update_ui_lastest_msg(
         lastmsg=f"正在执行任务: {txt}\n\n用户意图理解: 意图={explain_intention_to_user[user_intention.intention_type]}",
-        chatbot=chatbot, history=history, delay=0)
+        chatbot=chatbot,
+        history=history,
+        delay=0,
+    )
 
     # 用户意图: 修改本项目的配置
-    if user_intention.intention_type == 'ModifyConfiguration':
-        yield from modify_configuration_reboot(txt, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, user_intention)
+    if user_intention.intention_type == "ModifyConfiguration":
+        yield from modify_configuration_reboot(
+            txt,
+            llm_kwargs,
+            plugin_kwargs,
+            chatbot,
+            history,
+            system_prompt,
+            user_intention,
+        )
 
     # 用户意图: 调度插件
-    if user_intention.intention_type == 'ExecutePlugin':
-        yield from execute_plugin(txt, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, user_intention)
+    if user_intention.intention_type == "ExecutePlugin":
+        yield from execute_plugin(
+            txt,
+            llm_kwargs,
+            plugin_kwargs,
+            chatbot,
+            history,
+            system_prompt,
+            user_intention,
+        )
 
     # 用户意图: 聊天
-    if user_intention.intention_type == 'Chat':
-        yield from chat(txt, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, user_intention)
+    if user_intention.intention_type == "Chat":
+        yield from chat(
+            txt,
+            llm_kwargs,
+            plugin_kwargs,
+            chatbot,
+            history,
+            system_prompt,
+            user_intention,
+        )
 
     return
-
